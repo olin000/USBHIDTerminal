@@ -187,26 +187,19 @@ public class USBHIDService extends AbstractUSBHIDService {
 	@Override
 	public void onUSBDataReceive(byte[] buffer) {
 
+		if(buffer.length != 8)
+			return;
 		StringBuilder stringBuilder = new StringBuilder();
 		int i = 0;
-		if (receiveDataFormat.equals(Consts.INTEGER)) {
-			for (; i < buffer.length/* && buffer[i] != 0*/; i++) {
-				stringBuilder.append(delimiter).append(String.valueOf(USBUtils.toInt(buffer[i])));
-			}
-		} else if (receiveDataFormat.equals(Consts.HEXADECIMAL)) {
-			for (; i < buffer.length/* && buffer[i] != 0*/; i++) {
-				stringBuilder.append(delimiter).append(Integer.toHexString(buffer[i]));
-			}
-		} else if (receiveDataFormat.equals(Consts.TEXT)) {
-			for (; i < buffer.length/* && buffer[i] != 0*/; i++) {
-				stringBuilder.append(String.valueOf((char) buffer[i]));
-			}
-		} else if (receiveDataFormat.equals(Consts.BINARY)) {
-			for (; i < buffer.length/* && buffer[i] != 0*/; i++) {
-				stringBuilder.append(delimiter).append("0b").append(Integer.toBinaryString(Integer.valueOf(buffer[i])));
-			}
+		for (; i < buffer.length/* && buffer[i] != 0*/; i++) {
+			if(i == 3)
+				stringBuilder.append(" | X = ").append(String.valueOf(buffer[i]));
+			else if (i == 5)
+				stringBuilder.append(" | Y = ").append(String.valueOf(buffer[i]));
+			else
+				stringBuilder.append(" | ").append(String.valueOf(buffer[i]));
 		}
-		eventBus.post(new USBDataReceiveEvent(stringBuilder.toString(), i));
+		eventBus.post(new USBDataReceiveEvent(stringBuilder.toString(), i, buffer));
 	}
 
 	private void mLog(String log) {

@@ -7,6 +7,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager.NameNotFoundException;
+import android.graphics.*;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.view.Menu;
@@ -15,21 +16,13 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.RadioButton;
-
 import com.appspot.usbhidterminal.core.Consts;
-import com.appspot.usbhidterminal.core.events.DeviceAttachedEvent;
-import com.appspot.usbhidterminal.core.events.DeviceDetachedEvent;
-import com.appspot.usbhidterminal.core.events.LogMessageEvent;
-import com.appspot.usbhidterminal.core.events.PrepareDevicesListEvent;
-import com.appspot.usbhidterminal.core.events.SelectDeviceEvent;
-import com.appspot.usbhidterminal.core.events.ShowDevicesListEvent;
-import com.appspot.usbhidterminal.core.events.USBDataReceiveEvent;
-import com.appspot.usbhidterminal.core.events.USBDataSendEvent;
+import com.appspot.usbhidterminal.core.events.*;
 import com.appspot.usbhidterminal.core.services.SocketService;
 import com.appspot.usbhidterminal.core.services.USBHIDService;
 import com.appspot.usbhidterminal.core.services.WebServerService;
-
 import de.greenrobot.event.EventBus;
 import de.greenrobot.event.EventBusException;
 
@@ -38,6 +31,12 @@ public class USBHIDTerminal extends Activity implements View.OnClickListener {
 	private SharedPreferences sharedPreferences;
 
 	private Intent usbService;
+
+	private Bitmap bitmap;
+	private ImageView imageView;
+	private Canvas canvas;
+	private Paint paint;
+	private Path path;
 
 	private EditText edtlogText;
 	private EditText edtxtHidInput;
@@ -101,15 +100,26 @@ public class USBHIDTerminal extends Activity implements View.OnClickListener {
 		edtxtHidInput = (EditText) findViewById(R.id.edtxtHidInput);
 		edtlogText = (EditText) findViewById(R.id.edtlogText);
 
+		bitmap = Bitmap.createBitmap(381, 381, Bitmap.Config.ARGB_8888);
+		canvas = new Canvas();
+		canvas.setBitmap(bitmap);
+		paint = new Paint();
+		paint.setColor(Color.rgb(0, 0, 0));
+		paint.setStyle(Paint.Style.STROKE);
+		paint.setStrokeWidth(3);
+		canvas.drawColor(Color.RED);
+		path = new Path();
+
+		imageView = (ImageView) findViewById(R.id.imageView);
+		imageView.setImageBitmap(bitmap);
+
 		rbSendDataType = (RadioButton) findViewById(R.id.rbSendData);
 		rbSendText = (RadioButton) findViewById(R.id.rbSendText);
 		rbSendDataType.setOnClickListener(this);
 		rbSendText.setOnClickListener(this);
 
-		mLog("Development plan:\nUI refactoring\nPossibility to choice interfaces, endpoints, bulk or control transfer\n", false);
-		mLog("Check Arduino DigiUSB\n", false);
-		mLog("Check Javaino\n", false);
 		mLog("Initialized\nPlease select your USB HID device\n", false);
+		mLog("XP-Pen StarG430_B (G430S) is VID:0x28bd PID:0x75", true);
 		getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
 		edtxtHidInput.setText("test");
 	}
@@ -121,6 +131,10 @@ public class USBHIDTerminal extends Activity implements View.OnClickListener {
 			sendToUSBService(Consts.ACTION_USB_DATA_TYPE, rbSendDataType.isChecked());
 		} else if (v == btnClear) {
 			edtlogText.setText("");
+			canvas.drawColor(Color.RED);
+			path.reset();
+			imageView.setImageDrawable(null);
+			imageView.setImageBitmap(bitmap);
 		} else if (v == btnSelectHIDDevice) {
 			eventBus.post(new PrepareDevicesListEvent());
 		}
@@ -147,6 +161,13 @@ public class USBHIDTerminal extends Activity implements View.OnClickListener {
 
 	public void onEvent(USBDataReceiveEvent event) {
 		mLog(event.getData() + " \nReceived " + event.getBytesCount() + " bytes", true);
+		byte pressState = event.getBytesReceived()[1];
+		//Draw only when surface touched
+		// 1 means touched no pen button pressed
+		// 3 means touched lower button pressed
+		// 5 means touched upper button pressed
+		if((pressState == 1) || (pressState == 3) || (pressState == 5))
+			drawXY(event.getBytesReceived()[3],event.getBytesReceived()[5]);
 	}
 
 	public void onEvent(LogMessageEvent event) {
@@ -310,9 +331,17 @@ public class USBHIDTerminal extends Activity implements View.OnClickListener {
 			edtlogText.append(Consts.NEW_LINE);
 		}
 		edtlogText.append(log);
-		if(edtlogText.getLineCount() > 1000) {
-			edtlogText.setText("cleared");
+//		Limiting the number of lines to 4 not to allow scroll
+		if(edtlogText.getLineCount() > 4) {
+			edtlogText.setText("");
 		}
+	}
+
+	private void drawXY(int x, int y) {
+		path.lineTo(3*x, 3*y);
+		canvas.drawPath(path, paint);
+		imageView.setImageDrawable(null);
+		imageView.setImageBitmap(bitmap);
 	}
 
 	private void webServerServiceIsStart(boolean isStart) {
